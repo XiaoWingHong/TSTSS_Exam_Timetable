@@ -29,6 +29,7 @@ ORAL_EXAMER_OF_CHIN_SPEAKING = [x for x in df['中文説話\nOral 考官'].tolis
 MAIN_EXAMER_OF_CHIN_LISTENING = [x for x in df['中文聆聽\n主考官'].tolist() if x == x]
 MAIN_EXAMER_OF_PTH = [x for x in df['普通話\n主考官'].tolist() if x == x]
 MAIN_EXAMER_OF_VA = [x for x in df['VA\n主考官'].tolist() if x == x]
+FOREIGN_TEACHER = [x for x in df['外籍老師'].tolist() if x == x]
 
 tmp = {}
 for examer in MAIN_EXAMER_OF_VA:
@@ -203,7 +204,7 @@ for exam in ET_DATA:
                 if subject.room[i] == 'HALL' or subject.room[i][-1] == '1':
                     subject.teachers[i] = TA_DATA[i-1].name
                     findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
-            subject.teachers[subject.teachers.index('')] = 'AO'
+            subject.teachers[subject.teachers.index('')] = FOREIGN_TEACHER[0]
             for i in range(subject.teachers.index(''),len(subject.room)):
                 appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam, ORAL_EXAMER_OF_ENG_SPEAKING))
         elif 'istening' in subject.name and 'TSA' not in subject.name:
