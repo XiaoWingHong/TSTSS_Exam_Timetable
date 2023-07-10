@@ -1,3 +1,9 @@
+def printErrorMsg(fileName):
+    print(fileName)
+    print('Press any key to continue ...')
+    input()
+    exit()
+
 class exam:
     def __init__(self, examDate):
         self.examDate = examDate
@@ -7,7 +13,6 @@ class exam:
 class subject:
     def __init__(self, name, timeLimit, period, room, form):
         self.name = name
-        self.timeLimit = timeLimit
         self.period = period
         self.form = form
 
@@ -21,6 +26,11 @@ class subject:
                 room.remove(i)
         self.room = room
         self.teachers = ['']*len(self.room)
+
+        try:
+            self.timeLimit = int(timeLimit)
+        except:
+            printErrorMsg('Exam Timetable: Time Limit is not a number!')
 
 class teacher:
     def __init__(self, name):

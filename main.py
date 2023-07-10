@@ -9,7 +9,7 @@ from openpyxl.styles import Color, PatternFill, Font, Border
 from openpyxl.styles.borders import Border, Side
 
 def printErrorMsg(fileName):
-    print('Can\'t find file \'' + fileName + '\'!')
+    print(fileName)
     print('Press any key to continue ...')
     input()
     exit()
@@ -19,7 +19,7 @@ print('Reading data ...')
 try:
     df= pd.read_excel('Input/Specific Examer.xlsx')
 except:
-    printErrorMsg('Specific Examer.xlsx')
+    printErrorMsg('Can\'t find file \'Specific Examer.xlsx\'!')
 
 MAIN_EXAMER_OF_ENG_SPEAKING = [x for x in df['English Speaking\n主考官'].tolist() if x == x]
 ORAL_EXAMER_OF_ENG_SPEAKING = [x for x in df['English Speaking\nOral 考官'].tolist() if x == x]
@@ -45,11 +45,15 @@ for ta in [x for x in df['TA'].tolist() if x == x]:
 try:
     df= pd.read_excel('Input/Exam Timetable.xlsx', skiprows=[0], usecols=lambda x: 'Unnamed' not in x)
 except:
-    printErrorMsg('Exam Timetable.xlsx')
+    printErrorMsg('Can\'t find file \'Exam Timetable.xlsx\'!')
 
 ET_DATA = []
 for date in df.columns:
-    ET_DATA.append(cd.exam(examDate=date))
+    if date[-2:-1] in ['一', '二', '三', '四', '五', '六', '日']:
+        ET_DATA.append(cd.exam(examDate=date))
+    else:
+        print('Exam Timetable: Date Formate Error!')
+    
 for exam in ET_DATA:
     exam.subjects = []
     exam.noExam = []
@@ -89,7 +93,7 @@ try:
     sheets = pd.ExcelFile('Input/Teacher Timetable.xlsx')
     timeSlot = pd.read_excel('Input/Teacher Timetable.xlsx', skiprows=[0,1,3,6,10,13,16])['Unnamed: 0'].tolist()
 except:
-    printErrorMsg('Teacher Timetable.xlsx')
+    printErrorMsg('Can\'t find file \'Teacher Timetable.xlsx\'!')
 
 TT_DATA = []
 dateDict = {'Mon' : '一', 'Tue' : '二', 'Wed' : '三', 'Thu' : '四', 'Fri' : '五'}
@@ -125,9 +129,9 @@ def checkTime(examTime, lessonTime):
     time2 = []
     numPattern = re.compile(r'\d+')
     time1.append(int(numPattern.findall(examTime)[0])*60+int(numPattern.findall(examTime)[1]))
-    time1.append((int(numPattern.findall(examTime)[2]) + (12 if (re.search( r'p', examTime, re.I) and len(numPattern.findall(examTime)[2]) < 2) else 0))*60+int(numPattern.findall(examTime)[3]))
+    time1.append((int(numPattern.findall(examTime)[-2]) + (12 if (re.search( r'p', examTime, re.I) and len(numPattern.findall(examTime)[-2]) < 2) else 0))*60+int(numPattern.findall(examTime)[-1]))
     time2.append(int(numPattern.findall(lessonTime)[0])*60+int(numPattern.findall(lessonTime)[1]))
-    time2.append((int(numPattern.findall(lessonTime)[2]) + (12 if (re.search( r'p', lessonTime, re.I) and len(numPattern.findall(lessonTime)[2]) < 2) else 0))*60+int(numPattern.findall(lessonTime)[3]))
+    time2.append((int(numPattern.findall(lessonTime)[-2]) + (12 if (re.search( r'p', lessonTime, re.I) and len(numPattern.findall(lessonTime)[-2]) < 2) else 0))*60+int(numPattern.findall(lessonTime)[-1]))
     if (time1[0] > time2[1]) or (time1[1] < time2[0]):
         return False
     else:
@@ -177,7 +181,7 @@ def appendTeachers(i, subject, exam, avalibleTeacher):
     if subject.teachers[i] != '':
         return
     subject.teachers[i] = avalibleTeacher.name
-    avalibleTeacher.totalTime += int(subject.timeLimit)
+    avalibleTeacher.totalTime += subject.timeLimit
     if exam.examDate not in [key for key in avalibleTeacher.exams]:
         avalibleTeacher.exams[exam.examDate] = []
     avalibleTeacher.exams[exam.examDate].append(subject.period)
@@ -187,7 +191,7 @@ def appendTA(i, subject):
     avalibleTAList.sort(key=lambda x: x.totalTime, reverse=False)
     avalibleTA = avalibleTAList[0]
     subject.teachers[i] = avalibleTA.name
-    avalibleTA.totalTime += int(subject.timeLimit)
+    avalibleTA.totalTime += subject.timeLimit
 
 print('Processing ...')
 
@@ -198,7 +202,7 @@ for exam in ET_DATA:
             for i in range(1,4):
                 if subject.room[i] == 'HALL' or subject.room[i][-1] == '1':
                     subject.teachers[i] = TA_DATA[i-1].name
-                    findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += int(subject.timeLimit)
+                    findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
             subject.teachers[subject.teachers.index('')] = 'AO'
             for i in range(subject.teachers.index(''),len(subject.room)):
                 appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam, ORAL_EXAMER_OF_ENG_SPEAKING))
@@ -211,7 +215,7 @@ for exam in ET_DATA:
             appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_CHIN_SPEAKING))
             for i in range(1,3):
                 subject.teachers[i] = TA_DATA[i-1].name
-                findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += int(subject.timeLimit)
+                findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
             for i in range(3,len(subject.room)):
                 appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam, ORAL_EXAMER_OF_CHIN_SPEAKING))
         elif '普通話' in subject.name:
