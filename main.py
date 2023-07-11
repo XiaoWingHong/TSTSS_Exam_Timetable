@@ -126,18 +126,18 @@ for teacher in TT_DATA:
                 if teacher.lessons[exam.examDate[-2:-1]][key] == str(needLessonForms) or teacher.lessons[exam.examDate[-2:-1]][key] == 'all':
                     teacher.totalTime += 35
                     
-AVG_TIME = 0
-for exam in ET_DATA:
-    for subject in exam.subjects:
-        if 'eaking' not in subject.name:
-            if subject.room[0] == 'HALL':
-                AVG_TIME += subject.timeLimit * (len(subject.room) - 1)
-            else:
-                AVG_TIME += subject.timeLimit * len(subject.room)
+# AVG_TIME = 0
+# for exam in ET_DATA:
+#     for subject in exam.subjects:
+#         if 'eaking' not in subject.name:
+#             if subject.room[0] == 'HALL':
+#                 AVG_TIME += subject.timeLimit * (len(subject.room) - 1)
+#             else:
+#                 AVG_TIME += subject.timeLimit * len(subject.room)
 
-for teacher in TT_DATA:
-    AVG_TIME += teacher.totalTime
-AVG_TIME /= len(TT_DATA)
+# for teacher in TT_DATA:
+#     AVG_TIME += teacher.totalTime
+# AVG_TIME /= len(TT_DATA)
 
 def checkTime(examTime, lessonTime):
     time1 = []
@@ -180,8 +180,7 @@ def findAvalibleTeachers(subject, specificExamer=None):
                     break
 
         if not isBussy:
-            if specificExamer != None or (specificExamer == None and teacher.totalTime < AVG_TIME+20):
-                avalibleTeachersList.append(teacher)
+            avalibleTeachersList.append(teacher)
             
     avalibleTeachersList.sort(key=lambda x: x.totalTime, reverse=False)
     return avalibleTeachersList[0]
@@ -245,14 +244,14 @@ for exam in ET_DATA:
             appendTeachers(0, subject, findAvalibleTeachers(subject, [MAIN_EXAMER_OF_VA[subject.form]]))
 
 for subject in sorted(list(filter(lambda x: '' in x.teachers, list(np.concatenate(list(map(lambda x: x.subjects, ET_DATA))).flat))), key=lambda x: x.timeLimit, reverse=True):
-        if 'HALL' in subject.room:
-            for i in range(0,2):
-                appendTeachers(i, subject, findAvalibleTeachers(subject))
-            for i in range(2,len(subject.room)):
-                appendTA(i, subject)
-        else:
-            for i in range(0,len(subject.room)):
-                appendTeachers(i, subject, findAvalibleTeachers(subject))
+    if 'HALL' in subject.room:
+        for i in range(0,2):
+            appendTeachers(i, subject, findAvalibleTeachers(subject))
+        for i in range(2,len(subject.room)):
+            appendTA(i, subject)
+    else:
+        for i in range(0,len(subject.room)):
+            appendTeachers(i, subject, findAvalibleTeachers(subject))
         
 workbook = openpyxl.Workbook()
 sheet = workbook.worksheets[0]
