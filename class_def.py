@@ -11,10 +11,11 @@ class exam:
         self.noExam = []
 
 class subject:
-    def __init__(self, name, timeLimit, period, room, form):
+    def __init__(self, name, timeLimit, period, room, form, parent):
         self.name = name
         self.period = period
         self.form = form
+        self.parent = parent
 
         room = room.replace(' ','').split(',')
         for i in room:

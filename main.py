@@ -7,6 +7,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment
 from openpyxl.styles import Color, PatternFill, Font, Border
 from openpyxl.styles.borders import Border, Side
+import numpy as np
 
 def printErrorMsg(fileName):
     print(fileName)
@@ -75,7 +76,7 @@ for exam in ET_DATA:
             form += 1
             i += 1
         else:
-            exam.subjects.append(cd.subject(name = listedColum[i], timeLimit = listedColum[i+1], room = listedColum[i+2], period = listedColum[i+3], form=form))
+            exam.subjects.append(cd.subject(name = listedColum[i], timeLimit = listedColum[i+1], room = listedColum[i+2], period = listedColum[i+3], form=form, parent=exam))
             i += 4
 
 def findForm(lessonName):
@@ -124,6 +125,19 @@ for teacher in TT_DATA:
             for key in teacher.lessons[exam.examDate[-2:-1]]:
                 if teacher.lessons[exam.examDate[-2:-1]][key] == str(needLessonForms) or teacher.lessons[exam.examDate[-2:-1]][key] == 'all':
                     teacher.totalTime += 35
+                    
+AVG_TIME = 0
+for exam in ET_DATA:
+    for subject in exam.subjects:
+        if 'eaking' not in subject.name:
+            if subject.room[0] == 'HALL':
+                AVG_TIME += subject.timeLimit * (len(subject.room) - 1)
+            else:
+                AVG_TIME += subject.timeLimit * len(subject.room)
+
+for teacher in TT_DATA:
+    AVG_TIME += teacher.totalTime
+AVG_TIME /= len(TT_DATA)
 
 def checkTime(examTime, lessonTime):
     time1 = []
@@ -139,7 +153,7 @@ def checkTime(examTime, lessonTime):
         return True
 
 
-def findAvalibleTeachers(subject, exam, specificExamer=None):
+def findAvalibleTeachers(subject, specificExamer=None):
     avalibleTeachersList = []
     teacherData = TT_DATA
     if specificExamer != None:
@@ -148,44 +162,44 @@ def findAvalibleTeachers(subject, exam, specificExamer=None):
             teacherData.append(findParentObj(TT_DATA, teacherNames))
     for teacher in teacherData:
         isBussy = False
-        isTheirTeacher = False
-        if len(exam.noExam) > 0:
-            for value in teacher.lessons[exam.examDate[-2:-1]].values(): 
-                if value in exam.noExam or value == 'all':
-                    for lessonTime in [key for key in teacher.lessons[exam.examDate[-2:-1]] if (teacher.lessons[exam.examDate[-2:-1]][key] == value or teacher.lessons[exam.examDate[-2:-1]][key] == 'all')]:
+        if len(subject.parent.noExam) > 0:
+            for value in teacher.lessons[subject.parent.examDate[-2:-1]].values(): 
+                if value in subject.parent.noExam or value == 'all':
+                    for lessonTime in [key for key in teacher.lessons[subject.parent.examDate[-2:-1]] if (teacher.lessons[subject.parent.examDate[-2:-1]][key] == value or teacher.lessons[subject.parent.examDate[-2:-1]][key] == 'all')]:
                         if not isBussy:
                             isBussy = checkTime(subject.period, lessonTime)
                         else:
                             break
                 if isBussy:
                     break
-        if exam.examDate in [key for key in teacher.exams]:
-            for examTime in teacher.exams[exam.examDate]:
+        if subject.parent.examDate in [key for key in teacher.exams]:
+            for examTime in teacher.exams[subject.parent.examDate]:
                 if not isBussy:
                     isBussy = checkTime(subject.period, examTime)
                 else:
                     break
-        # if 'HALL' not in subject.room:
-        #     for teachedClass in teacher.classes:
-        #         if teachedClass in subject.room:
-        #             isTheirTeacher = True
-        if not isBussy and not isTheirTeacher:
-            avalibleTeachersList.append(teacher)
+
+        if not isBussy:
+            if specificExamer != None or (specificExamer == None and teacher.totalTime < AVG_TIME+20):
+                avalibleTeachersList.append(teacher)
             
     avalibleTeachersList.sort(key=lambda x: x.totalTime, reverse=False)
     return avalibleTeachersList[0]
+    
+    
 
 def findParentObj(data, name):
     return data[list(map(lambda x : x.name == name, data)).index(True)]
 
-def appendTeachers(i, subject, exam, avalibleTeacher):
+def appendTeachers(i, subject, avalibleTeacher, ignore=False):
     if subject.teachers[i] != '':
         return
     subject.teachers[i] = avalibleTeacher.name
-    avalibleTeacher.totalTime += subject.timeLimit
-    if exam.examDate not in [key for key in avalibleTeacher.exams]:
-        avalibleTeacher.exams[exam.examDate] = []
-    avalibleTeacher.exams[exam.examDate].append(subject.period)
+    if not ignore:
+        avalibleTeacher.totalTime += subject.timeLimit
+    if subject.parent.examDate not in [key for key in avalibleTeacher.exams]:
+        avalibleTeacher.exams[subject.parent.examDate] = []
+    avalibleTeacher.exams[subject.parent.examDate].append(subject.period)
 
 def appendTA(i, subject):
     avalibleTAList = TA_DATA
@@ -199,47 +213,46 @@ print('Processing ...')
 for exam in ET_DATA:
     for subject in exam.subjects:
         if 'peaking' in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_ENG_SPEAKING))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_SPEAKING), ignore=True)
             for i in range(1,4):
                 if subject.room[i] == 'HALL' or subject.room[i][-1] == '1':
                     subject.teachers[i] = TA_DATA[i-1].name
                     findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
             subject.teachers[subject.teachers.index('')] = FOREIGN_TEACHER[0]
             for i in range(subject.teachers.index(''),len(subject.room)):
-                appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam, ORAL_EXAMER_OF_ENG_SPEAKING))
+                appendTeachers(i, subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_ENG_SPEAKING), ignore=True)
         elif 'istening' in subject.name and 'TSA' not in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_ENG_LISTENING))
-            appendTeachers(1, subject, exam, findAvalibleTeachers(subject, exam))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_LISTENING))
+            appendTeachers(1, subject, findAvalibleTeachers(subject))
             for i in range(1,len(subject.room)):
                 appendTA(i, subject)
         elif '說話' in subject.name or '説話' in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_CHIN_SPEAKING))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_SPEAKING))
             for i in range(1,3):
                 subject.teachers[i] = TA_DATA[i-1].name
                 findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
             for i in range(3,len(subject.room)):
-                appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam, ORAL_EXAMER_OF_CHIN_SPEAKING))
+                appendTeachers(i, subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_CHIN_SPEAKING))
         elif '普通話' in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_PTH))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_PTH))
             for i in range(1,len(subject.room)):
                 appendTA(i, subject)
         elif '聆聽' in subject.name and 'TSA' not in subject.name and '普通話' not in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, MAIN_EXAMER_OF_CHIN_LISTENING))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_LISTENING))
             for i in range(1,len(subject.room)):
                 appendTA(i, subject)
         elif '視覺藝術' in subject.name:
-            appendTeachers(0, subject, exam, findAvalibleTeachers(subject, exam, [MAIN_EXAMER_OF_VA[subject.form]]))
+            appendTeachers(0, subject, findAvalibleTeachers(subject, [MAIN_EXAMER_OF_VA[subject.form]]))
 
-for exam in ET_DATA:
-    for subject in list(filter(lambda x: '' in x.teachers, exam.subjects)):
+for subject in sorted(list(filter(lambda x: '' in x.teachers, list(np.concatenate(list(map(lambda x: x.subjects, ET_DATA))).flat))), key=lambda x: x.timeLimit, reverse=True):
         if 'HALL' in subject.room:
             for i in range(0,2):
-                appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam))
+                appendTeachers(i, subject, findAvalibleTeachers(subject))
             for i in range(2,len(subject.room)):
                 appendTA(i, subject)
         else:
             for i in range(0,len(subject.room)):
-                appendTeachers(i, subject, exam, findAvalibleTeachers(subject, exam))
+                appendTeachers(i, subject, findAvalibleTeachers(subject))
         
 workbook = openpyxl.Workbook()
 sheet = workbook.worksheets[0]
