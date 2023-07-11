@@ -289,5 +289,12 @@ for i in range(1, ET_DATA[0].subjects[-1].form + 1):
             if sheet.cell(row = x, column = y).value == None:
                 sheet.cell(row = x, column = y).fill = greyFill
 
+workbook.create_sheet('Total Time')
+sheet2 = workbook.worksheets[1]
+sheet2.cell(row = 1, column = 1).value = 'Teacher'
+sheet2.cell(row = 1, column = 2).value = 'Minutes'
+for i, teacher in enumerate(TT_DATA, start=2):
+    sheet2.cell(row = i, column = 1).value = teacher.name
+    sheet2.cell(row = i, column = 2).value = teacher.totalTime
 
 workbook.save('監考時間表.xlsx')
