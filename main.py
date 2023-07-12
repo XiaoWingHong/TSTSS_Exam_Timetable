@@ -269,29 +269,46 @@ for subject in sorted(list(filter(lambda x: '' in x.teachers, list(np.concatenat
     
 workbook = openpyxl.Workbook()
 sheet = workbook.worksheets[0]
+sheet.title = '考試時間表 + 監考'
 formDict = { 1 : '中一級', 2 : '中二級', 3 : '中三級', 4 : '中四級', 5 : '中五級', 6 : '中六級'}
 
 greyFill = PatternFill(patternType='solid', fgColor=Color(rgb='D9D9D9'))
-cellborder = Border(left=Side(style='medium'), 
+yellowFill = PatternFill(patternType='solid', fgColor=Color(rgb='FFFF00'))
+orangeFill = PatternFill(patternType='solid', fgColor=Color(rgb='FFC000'))
+mediumBorder = Border(left=Side(style='medium'), 
                      right=Side(style='medium'), 
                      top=Side(style='medium'), 
                      bottom=Side(style='medium'))
+thinBorder = Border(left=Side(style='thin'), 
+                     right=Side(style='thin'), 
+                     top=Side(style='thin'), 
+                     bottom=Side(style='thin'))
 
 
 for i in range(ET_DATA[0].subjects[-1].form):
     sheet.cell(row = sheet.max_row+2, column = 1).value = formDict[i+1]
-    sheet.cell(row = sheet.max_row+1, column = 1).border = cellborder
+    sheet.cell(row = sheet.max_row+1, column = 1).border = mediumBorder
     top = sheet.max_row
 
     subjectListFilteredByForm = list(map(lambda x: list(filter(lambda y: y.form == i+1, x)) ,map(lambda x: x.subjects, ET_DATA)))
-
     maxRowLength = [''] * len(sorted(subjectListFilteredByForm, key=lambda z: len(z), reverse=True)[0])
+    
     for j in range(len(maxRowLength)):
         maxRowLength[j] = max(list(map(lambda x: len(x[j].room) if j < len(x) else 0, subjectListFilteredByForm)))
-    
+    for j in range(len(maxRowLength)):
+        if j == 0:
+            tmp = sheet.max_row
+        else:
+            tmp = sheet.max_row+1
+        for col in range(len(ET_DATA)+1):
+            for row in range(maxRowLength[j]+3):
+                sheet.cell(row = tmp+row+1, column = col+1).border = mediumBorder
+                sheet.cell(row = tmp+row+1, column = col+1).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
+                
     for col, exam in enumerate(ET_DATA,start=2):
         sheet.cell(row = top, column = col).value = exam.examDate
-        sheet.cell(row = top, column = col).border = cellborder
+        sheet.cell(row = top, column = col).border = mediumBorder
+        sheet.cell(row = top, column = col).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
         sheet.cell(row = top, column = col).font = Font(bold=True)
         sheet.column_dimensions[get_column_letter(col)].width = 17
         current_row = top+1
@@ -299,6 +316,8 @@ for i in range(ET_DATA[0].subjects[-1].form):
             sheet.cell(row = current_row, column = col).value = subject.name
             sheet.cell(row = current_row, column = col).font = Font(bold=True)
             sheet.cell(row = current_row, column = 1).value = '科 目'
+            sheet.cell(row = current_row, column = 1).fill = orangeFill
+            sheet.cell(row = current_row, column = col).fill = orangeFill
 
             sheet.cell(row = current_row+1, column = col).value = subject.timeLimit
             sheet.cell(row = current_row+1, column = 1).value = '時 限'
@@ -306,38 +325,60 @@ for i in range(ET_DATA[0].subjects[-1].form):
             sheet.cell(row = current_row+2, column = col).value = subject.period
             sheet.cell(row = current_row+2, column = 1).value = '應考時間'
 
-            for j in range(current_row, current_row+3):
-                sheet.cell(row = j, column = col).border = cellborder
-                sheet.cell(row = j, column = col).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
-                sheet.cell(row = j, column = 1).border = cellborder
-                sheet.cell(row = j, column = 1).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
-
             current_row += 3
             if sheet.cell(row = current_row, column = 1).value == None:
-                sheet.cell(row = current_row, column = 1).value = '應考試場'
-                sheet.cell(row = current_row, column = 1).border = cellborder
+                sheet.cell(row = current_row, column = 1).value = '應考試場\n監考'
+                sheet.cell(row = current_row, column = 1).fill = yellowFill
+                sheet.cell(row = current_row, column = 1).border = mediumBorder
                 sheet.cell(row = current_row, column = 1).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
-            for j in range(maxRowLength[k]+3):
+            for j in range(maxRowLength[k]+1):
                 if j < len(subject.room):
                     sheet.cell(row = current_row, column = col).value = subject.room[j] + ': ' + subject.teachers[j]
+                    sheet.cell(row = current_row, column = col).fill = yellowFill
                     sheet.cell(row = current_row, column = col).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
-                    sheet.cell(row = current_row, column = col).border = cellborder
+                    sheet.cell(row = current_row, column = col).border = mediumBorder
                 else:
                     sheet.cell(row = current_row, column = col).value = None
                 current_row += 1
             if len(subject.room) == maxRowLength[k]:
-                sheet.merge_cells(start_row=(current_row-3-maxRowLength[k]), start_column=1, end_row=current_row-4, end_column=1)
-            # for y in range(1, sheet.max_column+1):
-            #     for x in range(top, sheet.max_row+1):
-            #         if sheet.cell(row = x, column = y).value == None:
-            #             sheet.cell(row = x, column = y).fill = greyFill
+                sheet.merge_cells(start_row=(current_row-1-maxRowLength[k]), start_column=1, end_row=current_row-2, end_column=1)
+    for y in range(2, sheet.max_column+1):
+        for x in range(top, sheet.max_row+1):
+            if sheet.cell(row = x, column = y).value == None and sheet.cell(row = x, column = y).border == mediumBorder:
+                sheet.cell(row = x, column = y).fill = greyFill
 
-workbook.create_sheet('Total Time')
+workbook.create_sheet('老師上課 + 監考時數')
 sheet2 = workbook.worksheets[1]
 sheet2.cell(row = 1, column = 1).value = 'Teacher'
-sheet2.cell(row = 1, column = 2).value = 'Minutes'
+sheet2.cell(row = 1, column = 2).value = 'Ratio'
+sheet2.cell(row = 1, column = 3).value = 'Lesson'
+sheet2.cell(row = 1, column = 4).value = 'Exam'
+sheet2.cell(row = 1, column = 5).value = 'Total'
+
 for i, teacher in enumerate(TT_DATA, start=2):
     sheet2.cell(row = i, column = 1).value = teacher.name
-    sheet2.cell(row = i, column = 2).value = teacher.totalTime
+    if teacher.name in [key for key in SPECIAL_TIME_TEACHER]:
+        sheet2.cell(row = i, column = 2).value = SPECIAL_TIME_TEACHER[teacher.name]
+        sheet2.cell(row = i, column = 2).fill = yellowFill
+    else:
+        sheet2.cell(row = i, column = 2).value = 1
+    sheet2.cell(row = i, column = 3).value = teacher.lessonTime
+    sheet2.cell(row = i, column = 4).value = teacher.totalTime - teacher.lessonTime
+    sheet2.cell(row = i, column = 5).value = teacher.totalTime
+    
+for col in range(sheet2.max_column):
+    for row in range(sheet2.max_row):
+        sheet2.cell(row=row+1, column=col+1).border = thinBorder
+        
+ignoreTeacher = [key for key in SPECIAL_TIME_TEACHER] + FOREIGN_TEACHER
 
+tmp = sheet2.max_row+2
+sheet2.cell(row=tmp, column=1).value = 'Avg.'
+sheet2.cell(row=tmp, column=2).value = np.average(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA))))
+
+tmp = sheet2.max_row+1
+
+sheet2.cell(row=tmp, column=1).value = 'Diff.'
+sheet2.cell(row=tmp, column=2).value = max(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA)))) - min(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA))))
+        
 workbook.save('監考時間表.xlsx')
