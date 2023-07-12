@@ -40,6 +40,7 @@ class teacher:
         self.exams = {}
         self.classes = []
         self.totalTime = 0
+        self.lessonTime = 0
 
 class TA:
     def __init__(self, name):
