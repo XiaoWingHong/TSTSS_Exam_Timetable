@@ -47,3 +47,9 @@ class TA:
         self.name = name
         self.totalTime = 0
         self.exams = {}
+
+class examDetails:
+    def __init__(self, name, period, room):
+        self.name = name
+        self.period = period
+        self.room = room
