@@ -1,3 +1,5 @@
+import re
+
 def printErrorMsg(fileName):
     print(fileName)
     print('Press any key to continue ...')
@@ -28,21 +30,20 @@ class subject:
         self.room = room
         self.teachers = ['']*len(self.room)
 
-        try:
-            self.timeLimit = int(timeLimit)
-        except:
-            printErrorMsg('Exam Timetable: Time Limit is not a number!')
+        timeLimit = re.compile(r'\d+').findall(str(timeLimit))
+        self.timeLimit = list(map(lambda x: int(x), timeLimit))
 
 class teacher:
     def __init__(self, name):
         self.name = name
         self.lessons = {}
         self.exams = {}
-        self.classes = []
         self.totalTime = 0
         self.lessonTime = 0
+        self.teachedSubjectsAndClasses = {}
 
 class TA:
     def __init__(self, name):
         self.name = name
         self.totalTime = 0
+        self.exams = {}
