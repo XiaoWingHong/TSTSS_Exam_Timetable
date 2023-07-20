@@ -41,6 +41,7 @@ class teacher:
         self.totalTime = 0
         self.lessonTime = 0
         self.teachedSubjectsAndClasses = {}
+        self.ratio = 1
 
 class TA:
     def __init__(self, name):
@@ -49,7 +50,15 @@ class TA:
         self.exams = {}
 
 class examDetails:
-    def __init__(self, name, period, room):
+    def __init__(self, name, period, room, timeLimit):
         self.name = name
         self.period = period
+        self.room = room
+        self.timeLimit = timeLimit
+
+class lesson:
+    def __init__(self, name, period, classes, room):
+        self.name = name
+        self.period = period
+        self.classes = classes
         self.room = room
