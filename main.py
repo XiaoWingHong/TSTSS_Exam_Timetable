@@ -220,7 +220,7 @@ def findAvalibleTeachers(subject, specificExamer=None, needCheck = False):
         if specificExamer == None and teacher.name in SPECIAL_TIME_TEACHER and (teacher.totalTime >= SPECIAL_TIME_TEACHER[teacher.name] * AVG_TIME):
             avalible = False
         if len(subject.parent.noExam) > 0:
-            for lesson in filter(lambda x: int(x.classes[0][0]) in exam.noExam, teacher.lessons[subject.parent.examDate[-2:-1]]): 
+            for lesson in filter(lambda x: int(x.classes[0][0]) in subject.parent.noExam, teacher.lessons[subject.parent.examDate[-2:-1]]): 
                 if avalible:
                     avalible = checkTime(subject.period, lesson.period)
                 else:
