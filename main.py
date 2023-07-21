@@ -3,17 +3,28 @@ import class_def as cd
 import re
 import random
 import openpyxl
+import numpy as np
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment
 from openpyxl.styles import Color, PatternFill, Font, Border
 from openpyxl.styles.borders import Border, Side
-import numpy as np
+from openpyxl import formatting, styles, Workbook
 
 def printErrorMsg(fileName):
     print(fileName)
     print('Press any key to continue ...')
     input()
     exit()
+
+def transferTimeFormat(inputTime):
+    tmp = re.compile(r'\d+').findall(inputTime)
+    if len(re.compile(r'p', re.I).findall(inputTime)) > 0:
+        if len(tmp[2]) == 1:
+            tmp[2] = str(int(tmp[2]) + 12)
+        if len(re.compile(r'p', re.I).findall(inputTime)) > 1 and len(tmp[0]) == 1:
+            tmp[0] = str(int(tmp[0]) + 12)
+
+    return tmp[0]+':'+tmp[1]+'-'+tmp[2]+':'+tmp[3]
 
 print('Reading data ...')
 
@@ -32,6 +43,9 @@ MAIN_EXAMER_OF_PTH = [x for x in df['普通話\n主考官'].tolist() if x == x]
 MAIN_EXAMER_OF_VA = [x for x in df['VA\n主考官'].tolist() if x == x]
 FOREIGN_TEACHER = [x for x in df['外籍老師'].tolist() if x == x]
 SPECIAL_TIME_TEACHER = [x for x in df['特殊時數'].tolist() if x == x]
+SPECIAL_TA = [x for x in df['特殊TA'].tolist() if x == x]
+ENG_SPEAKING_HALL_TA = [x for x in df['English Speaking HALL TA'].tolist() if x == x]
+SPEAKING_PR_TA = [x for x in df['English Speaking preparation room TA'].tolist() if x == x]
 
 tmp = {}
 for examer in MAIN_EXAMER_OF_VA:
@@ -50,6 +64,19 @@ CANT_BE_EXAMER = [x for x in df['不能監考\n(校長)'].tolist() if x == x]
 TA_DATA = []
 for ta in [x for x in df['TA'].tolist() if x == x]:
     TA_DATA.append(cd.TA(name=ta))
+
+try:
+    df= pd.read_excel('Input/Other Info.xlsx', sheet_name='科目名稱對照')
+except:
+    printErrorMsg('Can\'t find file \'Other Info.xlsx\'!')
+
+SUBJECT_NAME_DICT = {[x for x in df['科目中文名'].tolist() if x == x][i] : [x for x in df['科目縮寫'].tolist() if x == x][i].replace(' ','').split(',') for i in range(len([x for x in df['科目中文名'].tolist() if x == x]))}
+
+df= pd.read_excel('Input/Other Info.xlsx', sheet_name='班別科室對照')
+CLASS_DICT = {str([x for x in df['課室'].tolist() if x == x][i]) : [x for x in df['班別'].tolist() if x == x][i] for i in range(len([x for x in df['課室'].tolist() if x == x]))}
+
+df= pd.read_excel('Input/Other Info.xlsx', sheet_name='班主任')
+CLASS_TEACHER = {[x for x in df['班主任'].tolist() if x == x][i] : [x for x in df['班別'].tolist() if x == x][i] for i in range(len([x for x in df['班主任'].tolist() if x == x]))}
 
 try:
     df= pd.read_excel('Input/Exam Timetable.xlsx', skiprows=[0], usecols=lambda x: 'Unnamed' not in x)
@@ -74,8 +101,8 @@ for exam in ET_DATA:
             form += 1
             if listedColum[i+1] == '上課':
                 exam.noExam.append(form)
-    listedColum = [x for x in listedColum if x == x] #remove nan
-    listedColum = list(filter(lambda i: i != '上課', listedColum)) #remove '上課'
+    listedColum = [x for x in listedColum if x == x]
+    listedColum = list(filter(lambda i: i != '上課', listedColum))
     i = 0
     form = 0
     while i < len(listedColum):
@@ -83,64 +110,80 @@ for exam in ET_DATA:
             form += 1
             i += 1
         else:
-            exam.subjects.append(cd.subject(name = listedColum[i], timeLimit = listedColum[i+1], room = listedColum[i+2], period = listedColum[i+3], form=form, parent=exam))
+            exam.subjects.append(cd.subject(name = listedColum[i], timeLimit = listedColum[i+1], room = listedColum[i+2], period = transferTimeFormat(listedColum[i+3]), form=form, parent=exam))
             i += 4
 
-def findForm(lessonName):
-    if re.match('[1-9]', lessonName[0]):
-        return lessonName[0]
+def appendSubjectsAndClasses(teacher, lessonName):
+    s = re.compile(r'[1-6][A-F] [A-Za-z0-9]+').findall(lessonName)
+    c = re.compile(r'[1-6][A-F]').findall(lessonName)
+    if len(s) > 0:
+        if s[0][3:] not in [key for key in teacher.teachedSubjectsAndClasses]:
+            teacher.teachedSubjectsAndClasses[s[0][3:]] = []
+        if not set(c).issubset(teacher.teachedSubjectsAndClasses[s[0][3:]]):
+            teacher.teachedSubjectsAndClasses[s[0][3:]] += c
+        return c, s[0][3:]
     else:
-       return 'none'
-    
-def getClass(lessonName):
-    listedClass = []
-    pattern = re.compile(r'[1-9]+[0-9]+[0-9]')
-    listedClass = pattern.findall(lessonName)
-    return listedClass
+        return None
 
 try:
     sheets = pd.ExcelFile('Input/Teacher Timetable.xlsx')
-    timeSlot = pd.read_excel('Input/Teacher Timetable.xlsx', skiprows=[0,1,3,6,10,13,14,15,16])['Unnamed: 0'].tolist()
 except:
     printErrorMsg('Can\'t find file \'Teacher Timetable.xlsx\'!')
 
 TT_DATA = []
 dateDict = {'Mon' : '一', 'Tue' : '二', 'Wed' : '三', 'Thu' : '四', 'Fri' : '五'}
+timeSlot = pd.read_excel('Input/Teacher Timetable.xlsx', skiprows=[0,1])['Unnamed: 0'].tolist()
+timeSlot = list(map(transferTimeFormat, timeSlot))
+
 for sheetName in sheets.sheet_names:
     if sheetName not in CANT_BE_EXAMER:
         TT_DATA.append(cd.teacher(sheetName))
 for teacher in TT_DATA:
+    teacher.ratio = 1
     teacher.lessons = {}
     teacher.totalTime = 0
-    teacher.classes = []
+    teacher.teachedSubjectsAndClasses = {}
     teacher.exams = {}
-    df = pd.read_excel('Input/Teacher Timetable.xlsx', skiprows=[0,1,3,6,10,13,14,15,16], sheet_name=teacher.name, usecols=lambda x: 'Unnamed' not in x)
+    df = pd.read_excel('Input/Teacher Timetable.xlsx', skiprows=[0,1], sheet_name=teacher.name, usecols=lambda x: 'Unnamed' not in x)
+
     for date in df.columns:
-        noLesson = df[date].isnull().tolist()
         listedColum = df[date].tolist()
-        teacher.lessons[dateDict[date]] = {}
-        for i in range(len(noLesson)):
-            if noLesson[i] is False:
-                teacher.lessons[dateDict[date]][timeSlot[i]] = findForm(listedColum[i])
-                teacher.classes += getClass(listedColum[i])
-    teacher.classes = [*set(teacher.classes)]
+        teacher.lessons[dateDict[date]] = []
+        for i in range(len(listedColum)):
+            if 'unch' in str(listedColum[i]):
+                break
+            elif 'orning' in str(listedColum[i]) and teacher.name in [key for key in CLASS_TEACHER]:
+                teacher.lessons[dateDict[date]].append(cd.lesson(name='班主任', period=timeSlot[i], classes=[CLASS_TEACHER[teacher.name]], room=[i for i in CLASS_DICT if CLASS_DICT[i] == CLASS_TEACHER[teacher.name]]))
+            elif re.match('[1-6][A-F]', str(listedColum[i])) != None:
+                classes, name = appendSubjectsAndClasses(teacher, listedColum[i])
+                room = listedColum[i].split(' ')[-1]
+                teacher.lessons[dateDict[date]].append(cd.lesson(name=name, period=timeSlot[i], classes=classes, room=room))
+    
+    if teacher.name in [key for key in SPECIAL_TIME_TEACHER]:
+        teacher.ratio = SPECIAL_TIME_TEACHER[teacher.name]
 
 for teacher in TT_DATA:
     teacher.totalTime = 0
     for exam in ET_DATA:
         for needLessonForms in exam.noExam:
-            for key in teacher.lessons[exam.examDate[-2:-1]]:
-                if teacher.lessons[exam.examDate[-2:-1]][key] == str(needLessonForms) or teacher.lessons[exam.examDate[-2:-1]][key] == 'all':
+            for lesson in teacher.lessons[exam.examDate[-2:-1]]:
+                if lesson.classes[0][0] == str(needLessonForms) and lesson.name != '班主任':
                     teacher.lessonTime += 35
+
+        teacher.exams[exam.examDate] = []
     teacher.totalTime = teacher.lessonTime
+
+for ta in TA_DATA:
+    for exam in ET_DATA:
+        ta.exams[exam.examDate] = []
 
 AVG_TIME = 0
 for exam in ET_DATA:
     for subject in exam.subjects:
         if subject.room[0] == 'HALL':
-            AVG_TIME += subject.timeLimit * (len(subject.room) - 1)
+            AVG_TIME += subject.timeLimit[0] * (len(subject.room) - 1)
         else:
-            AVG_TIME += subject.timeLimit * len(subject.room)
+            AVG_TIME += subject.timeLimit[0] * len(subject.room)
             
 
 for teacher in TT_DATA:
@@ -153,44 +196,53 @@ def checkTime(examTime, lessonTime):
     time2 = []
     numPattern = re.compile(r'\d+')
     time1.append(int(numPattern.findall(examTime)[0])*60+int(numPattern.findall(examTime)[1]))
-    time1.append((int(numPattern.findall(examTime)[-2]) + (12 if (re.search( r'p', examTime, re.I) and len(numPattern.findall(examTime)[-2]) < 2) else 0))*60+int(numPattern.findall(examTime)[-1]))
+    time1.append(int(numPattern.findall(examTime)[-2])*60+int(numPattern.findall(examTime)[-1]))
     time2.append(int(numPattern.findall(lessonTime)[0])*60+int(numPattern.findall(lessonTime)[1]))
-    time2.append((int(numPattern.findall(lessonTime)[-2]) + (12 if (re.search( r'p', lessonTime, re.I) and len(numPattern.findall(lessonTime)[-2]) < 2) else 0))*60+int(numPattern.findall(lessonTime)[-1]))
+    time2.append((int(numPattern.findall(lessonTime)[-2])*60+int(numPattern.findall(lessonTime)[-1])))
     if (time1[0] > time2[1]) or (time1[1] < time2[0]):
         return True
     else:
         return False
 
 
-def findAvalibleTeachers(subject, specificExamer=None):
+def findAvalibleTeachers(subject, specificExamer=None, needCheck = False):
     avalibleTeachersList = []
-    teacherData = TT_DATA
+    teacherData = []
     if specificExamer != None:
-        teacherData = []
         for teacherNames in specificExamer:
             teacherData.append(findParentObj(TT_DATA, teacherNames))
+    else:
+        teacherData = sorted(TT_DATA, key=lambda x: x.ratio, reverse=True)
     for teacher in teacherData:
         avalible = True
         if teacher.name in FOREIGN_TEACHER and specificExamer != FOREIGN_TEACHER:
             avalible = False
-        if teacher.name in SPECIAL_TIME_TEACHER and (teacher.totalTime >= SPECIAL_TIME_TEACHER[teacher.name] * AVG_TIME):
+        if specificExamer == None and teacher.name in SPECIAL_TIME_TEACHER and (teacher.totalTime >= SPECIAL_TIME_TEACHER[teacher.name] * AVG_TIME):
             avalible = False
         if len(subject.parent.noExam) > 0:
-            for value in teacher.lessons[subject.parent.examDate[-2:-1]].values(): 
-                if value in subject.parent.noExam or value == 'all':
-                    for lessonTime in [key for key in teacher.lessons[subject.parent.examDate[-2:-1]] if (teacher.lessons[subject.parent.examDate[-2:-1]][key] == value or teacher.lessons[subject.parent.examDate[-2:-1]][key] == 'all')]:
-                        if avalible:
-                            avalible = checkTime(subject.period, lessonTime)
-                        else:
-                            break
-                if not avalible:
+            for lesson in filter(lambda x: int(x.classes[0][0]) in exam.noExam, teacher.lessons[subject.parent.examDate[-2:-1]]): 
+                if avalible:
+                    avalible = checkTime(subject.period, lesson.period)
+                else:
                     break
         if subject.parent.examDate in [key for key in teacher.exams]:
-            for examTime in teacher.exams[subject.parent.examDate]:
+            for examTime in map(lambda x: x.period, teacher.exams[subject.parent.examDate]):
                 if avalible:
                     avalible = checkTime(subject.period, examTime)
                 else:
                     break
+        
+        if needCheck:
+            tmp = subject.name[:subject.name.index(' ') if ' ' in subject.name else len(subject.name)]
+            if tmp in [key for key in SUBJECT_NAME_DICT]:
+                for subjectName in SUBJECT_NAME_DICT[tmp]:
+                    if subjectName in [key for key in teacher.teachedSubjectsAndClasses]:
+                        if len(subject.room) > 2:
+                            if CLASS_DICT[subject.room[subject.teachers.index('')]] in teacher.teachedSubjectsAndClasses[subjectName]:
+                                avalible = False
+                        else:
+                            if str(subject.form) in list(map(lambda x: x[0], teacher.teachedSubjectsAndClasses[subjectName])):
+                                avalible = False
 
         if avalible:
             avalibleTeachersList.append(teacher)
@@ -203,73 +255,101 @@ def findAvalibleTeachers(subject, specificExamer=None):
 def findParentObj(data, name):
     return data[list(map(lambda x : x.name == name, data)).index(True)]
 
-def appendTeachers(i, subject, avalibleTeacher, ignore=False):
+def appendTeachers(i, subject, avalibleTeacher, isOral=False):
     if subject.teachers[i] != '':
         return
     subject.teachers[i] = avalibleTeacher.name
-    if not ignore:
-        avalibleTeacher.totalTime += subject.timeLimit
-    if subject.parent.examDate not in [key for key in avalibleTeacher.exams]:
-        avalibleTeacher.exams[subject.parent.examDate] = []
-    avalibleTeacher.exams[subject.parent.examDate].append(subject.period)
+    tmp = 0 if not isOral else 1
+    avalibleTeacher.totalTime += subject.timeLimit[tmp]
+    avalibleTeacher.exams[subject.parent.examDate].append(cd.examDetails(subject.name, subject.period, subject.room[i], subject.timeLimit[tmp]))
 
-def appendTA(i, subject):
-    avalibleTAList = TA_DATA
+    
+
+def appendTA(i, subject, specific=None):
+    avalibleTAList = []
+    tmp = []
+    if specific != None:
+        for TAName in specific:
+            tmp.append(findParentObj(TA_DATA, TAName))
+    else:
+        tmp = TA_DATA
+
+    for TA in tmp:
+        avalible = True
+        if subject.parent.examDate in [key for key in TA.exams]:
+            for examTime in map(lambda x: x.period, TA.exams[subject.parent.examDate]):
+                if avalible:
+                    avalible = checkTime(subject.period, examTime)
+                else:
+                    break
+        
+        if avalible:
+            avalibleTAList.append(TA)
+
     avalibleTAList.sort(key=lambda x: x.totalTime, reverse=False)
     avalibleTA = avalibleTAList[0]
     subject.teachers[i] = avalibleTA.name
-    avalibleTA.totalTime += subject.timeLimit
+    avalibleTA.totalTime += subject.timeLimit[0]
+    avalibleTA.exams[subject.parent.examDate].append(cd.examDetails(subject.name, subject.period, subject.room[i], subject.timeLimit[0]))
 
+def appendRemaining(subject):
+    appendTA(len(subject.teachers)-1, subject)
+    if subject.teachers[len(subject.teachers)-1] in SPECIAL_TA:
+        appendTA(len(subject.teachers)-2, subject)
+    for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
+        appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject))
 print('Processing ...')
 
 for exam in ET_DATA:
     for subject in exam.subjects:
         if 'peaking' in subject.name:
-            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_SPEAKING), ignore=False)
-            for i in range(1,4):
-                if subject.room[i] == 'HALL' or subject.room[i][-1] == '1':
-                    subject.teachers[i] = TA_DATA[i-1].name
-                    findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
-            for i in range(subject.teachers.index(''), subject.teachers.index('')+len(FOREIGN_TEACHER)):
-                appendTeachers(i, subject, findAvalibleTeachers(subject, FOREIGN_TEACHER), ignore=False)
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_SPEAKING))
+            for i in range(1,len(list(filter(lambda x: x == 'HALL', subject.room)))):
+                appendTA(i, subject, ENG_SPEAKING_HALL_TA)
             for i in range(subject.teachers.index(''),len(subject.room)):
-                appendTeachers(i, subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_ENG_SPEAKING), ignore=False)
+                if subject.room[i][-2] == 'p':
+                    appendTA(i, subject, SPEAKING_PR_TA)
+            for i in range(len(FOREIGN_TEACHER)):
+                appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, FOREIGN_TEACHER), isOral=True)
+            for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
+                appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_ENG_SPEAKING), isOral=True)
         elif 'istening' in subject.name and 'TSA' not in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_LISTENING))
             appendTeachers(1, subject, findAvalibleTeachers(subject))
-            for i in range(1,len(subject.room)):
+            for i in range(2,len(subject.room)):
                 appendTA(i, subject)
         elif '說話' in subject.name or '説話' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_SPEAKING))
-            for i in range(1,3):
-                subject.teachers[i] = TA_DATA[i-1].name
-                findParentObj(TA_DATA, TA_DATA[i-1].name).totalTime += subject.timeLimit
-            for i in range(3,len(subject.room)):
-                appendTeachers(i, subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_CHIN_SPEAKING))
+            for i in range(1,len(list(filter(lambda x: x == 'HALL', subject.room)))):
+                appendTA(i, subject)
+            for i in range(subject.teachers.index(''),len(subject.room)):
+                if subject.room[i][-2] == 'p':
+                    appendTA(i, subject, SPEAKING_PR_TA)
+            for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
+                appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_CHIN_SPEAKING), isOral=True)
         elif '普通話' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_PTH))
-            for i in range(1,len(subject.room)):
-                appendTA(i, subject)
+            appendRemaining(subject)
         elif '聆聽' in subject.name and 'TSA' not in subject.name and '普通話' not in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_LISTENING))
-            for i in range(1,len(subject.room)):
-                appendTA(i, subject)
+            appendRemaining(subject)
         elif '視覺藝術' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, [MAIN_EXAMER_OF_VA[subject.form]]))
 
-for subject in sorted(list(filter(lambda x: '' in x.teachers, list(np.concatenate(list(map(lambda x: x.subjects, ET_DATA))).flat))), key=lambda x: x.timeLimit, reverse=True):
+for subject in sorted(list(filter(lambda x: '' in x.teachers, list(np.concatenate(list(map(lambda x: x.subjects, ET_DATA))).flat))), key=lambda x: x.timeLimit[0], reverse=True):
     if 'HALL' in subject.room:
-        for i in range(0,2):
-            appendTeachers(i, subject, findAvalibleTeachers(subject))
-        for i in range(2,len(subject.room)):
-                appendTA(i, subject)
+        appendTeachers(0, subject, findAvalibleTeachers(subject))   
+        appendRemaining(subject)
     else:
         for i in range(0,len(subject.room)):
-            appendTeachers(i, subject, findAvalibleTeachers(subject))
-    
+            appendTeachers(i, subject, findAvalibleTeachers(subject, needCheck=True))
+
+print('Outputting ...')
+
 workbook = openpyxl.Workbook()
 sheet = workbook.worksheets[0]
 sheet.title = '考試時間表 + 監考'
+
 formDict = { 1 : '中一級', 2 : '中二級', 3 : '中三級', 4 : '中四級', 5 : '中五級', 6 : '中六級'}
 
 greyFill = PatternFill(patternType='solid', fgColor=Color(rgb='D9D9D9'))
@@ -283,6 +363,15 @@ thinBorder = Border(left=Side(style='thin'),
                      right=Side(style='thin'), 
                      top=Side(style='thin'), 
                      bottom=Side(style='thin'))
+bottemBorder = Border(left=Side(style=None), 
+                     right=Side(style=None), 
+                     top=Side(style=None), 
+                     bottom=Side(style='medium'))
+
+red_font = styles.Font(size=14, bold=True, color='9c0103')
+red_fill = styles.PatternFill(start_color='FFC7CE', end_color='FFC7CE', fill_type='solid')
+green_font = styles.Font(size=14, bold=True, color='006100')
+green_fill = styles.PatternFill(start_color='C6EFCE', end_color='C6EFCE', fill_type='solid')
 
 
 for i in range(ET_DATA[0].subjects[-1].form):
@@ -319,7 +408,7 @@ for i in range(ET_DATA[0].subjects[-1].form):
             sheet.cell(row = current_row, column = 1).fill = orangeFill
             sheet.cell(row = current_row, column = col).fill = orangeFill
 
-            sheet.cell(row = current_row+1, column = col).value = subject.timeLimit
+            sheet.cell(row = current_row+1, column = col).value = '/'.join(list(map(lambda x: str(x) ,subject.timeLimit)))
             sheet.cell(row = current_row+1, column = 1).value = '時 限'
 
             sheet.cell(row = current_row+2, column = col).value = subject.period
@@ -347,38 +436,100 @@ for i in range(ET_DATA[0].subjects[-1].form):
             if sheet.cell(row = x, column = y).value == None and sheet.cell(row = x, column = y).border == mediumBorder:
                 sheet.cell(row = x, column = y).fill = greyFill
 
+
 workbook.create_sheet('老師上課 + 監考時數')
 sheet2 = workbook.worksheets[1]
-sheet2.cell(row = 1, column = 1).value = 'Teacher'
-sheet2.cell(row = 1, column = 2).value = 'Ratio'
-sheet2.cell(row = 1, column = 3).value = 'Lesson'
-sheet2.cell(row = 1, column = 4).value = 'Exam'
-sheet2.cell(row = 1, column = 5).value = 'Total'
+sheet2.sheet_view.zoomScale = 70
 
-for i, teacher in enumerate(TT_DATA, start=2):
-    sheet2.cell(row = i, column = 1).value = teacher.name
-    if teacher.name in [key for key in SPECIAL_TIME_TEACHER]:
-        sheet2.cell(row = i, column = 2).value = SPECIAL_TIME_TEACHER[teacher.name]
-        sheet2.cell(row = i, column = 2).fill = yellowFill
-    else:
-        sheet2.cell(row = i, column = 2).value = 1
-    sheet2.cell(row = i, column = 3).value = teacher.lessonTime
-    sheet2.cell(row = i, column = 4).value = teacher.totalTime - teacher.lessonTime
-    sheet2.cell(row = i, column = 5).value = teacher.totalTime
-    
-for col in range(sheet2.max_column):
-    for row in range(sheet2.max_row):
-        sheet2.cell(row=row+1, column=col+1).border = thinBorder
-        
 ignoreTeacher = [key for key in SPECIAL_TIME_TEACHER] + FOREIGN_TEACHER
+avg = round(np.average(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA)))))
 
-tmp = sheet2.max_row+2
-sheet2.cell(row=tmp, column=1).value = 'Avg.'
-sheet2.cell(row=tmp, column=2).value = np.average(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA))))
+header = ['老師', '班主任', '比例', '上課時數', '考試時數', '總時數', '平均', '誤差']
+for i, lable in enumerate(header, start=1):
+    sheet2.cell(row = 1, column = i).value = lable
 
-tmp = sheet2.max_row+1
+for i, examDate in enumerate(map(lambda x: x.examDate, ET_DATA)):
+    sheet2.cell(row = 1, column = sheet2.max_column+1).value = examDate
+    sheet2.column_dimensions[get_column_letter(sheet2.max_column)].width = 18
+    sheet2.column_dimensions[get_column_letter(sheet2.max_column+1)].width = 18
+    sheet2.column_dimensions[get_column_letter(sheet2.max_column+2)].width = 10
+    sheet2.column_dimensions[get_column_letter(sheet2.max_column+3)].width = 18
+    sheet2.column_dimensions[get_column_letter(sheet2.max_column+4)].width = 6
+    sheet2.merge_cells(start_row=1, start_column=sheet2.max_column, end_row=1, end_column=sheet2.max_column+4)
+    
+for y in range(1, sheet2.max_column+1):
+        sheet2.cell(row = sheet2.max_row, column = y).border = bottemBorder
 
-sheet2.cell(row=tmp, column=1).value = 'Diff.'
-sheet2.cell(row=tmp, column=2).value = max(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA)))) - min(list(map(lambda x: x.totalTime, filter(lambda x: x.name not in ignoreTeacher, TT_DATA))))
+
+for teacher in TT_DATA+TA_DATA:
+    current_col = 1
+    sheet2.cell(row = sheet2.max_row+1, column = current_col).value = teacher.name
+    if teacher.name in [key for key in CLASS_TEACHER]:
+        sheet2.cell(row = sheet2.max_row, column = current_col+1).value = CLASS_TEACHER[teacher.name]
+    sheet2.cell(row = sheet2.max_row, column = current_col+2).value = teacher.ratio
+    if teacher.ratio != 1:
+        sheet2.cell(row = sheet2.max_row, column = current_col+2).fill = yellowFill
+    sheet2.cell(row = sheet2.max_row, column = current_col+3).value = teacher.lessonTime if type(teacher) == cd.teacher else 0
+    sheet2.cell(row = sheet2.max_row, column = current_col+4).value = teacher.totalTime - (teacher.lessonTime if type(teacher) == cd.teacher else 0)
+    sheet2.cell(row = sheet2.max_row, column = current_col+5).value = teacher.totalTime
+    sheet2.cell(row = sheet2.max_row, column = current_col+6).value = avg
+    sheet2.cell(row = sheet2.max_row, column = current_col+7).value = '=' + sheet2.cell(row = sheet2.max_row, column = current_col+5).coordinate + '-' + sheet2.cell(row = sheet2.max_row, column = current_col+6).coordinate
+    sheet2.conditional_formatting.add(sheet2.cell(row = sheet2.max_row, column = current_col+7).coordinate, formatting.rule.CellIsRule(operator='notBetween', formula=['-15','15'], fill=red_fill, font=red_font))
+    sheet2.conditional_formatting.add(sheet2.cell(row = sheet2.max_row, column = current_col+7).coordinate, formatting.rule.CellIsRule(operator='between', formula=['-15','15'], fill=green_fill, font=green_font))
+
+    current_col = 9
+    tmp = sheet2.max_row
+    for exam in ET_DATA:
+        current_row = tmp
+        if len(exam.noExam) > 0 and type(teacher) == cd.teacher:
+            for lesson in filter(lambda x: int(x.classes[0][0]) in exam.noExam, teacher.lessons[exam.examDate[-2:-1]]):
+                sheet2.cell(row = current_row, column = current_col).value = lesson.period
+                sheet2.cell(row = current_row, column = current_col+1).value = lesson.name
+                sheet2.cell(row = current_row, column = current_col+2).value = ','.join(lesson.classes)
+                sheet2.cell(row = current_row, column = current_col+3).value = ''.join(lesson.room)
+                if lesson.name != '班主任':
+                    sheet2.cell(row = current_row, column = current_col+4).value = 35
+                
+                for col in range(current_col, current_col+5):
+                    sheet2.cell(row = current_row, column = col).font = Font(color='0066FF', bold=True)
+
+                current_row += 1
+        for examDetails in teacher.exams[exam.examDate]:
+            sheet2.cell(row = current_row, column = current_col).value = examDetails.period
+            sheet2.cell(row = current_row, column = current_col+1).value = examDetails.name
+            # sheet2.cell(row = current_row, column = current_col+2).value = 
+            sheet2.cell(row = current_row, column = current_col+3).value = ''.join(examDetails.room)
+            sheet2.cell(row = current_row, column = current_col+4).value = examDetails.timeLimit
+
+            current_row += 1
+
+        current_col += 5
+
+    for i in range(len(header)):
+        sheet2.merge_cells(start_row=tmp, end_row=sheet2.max_row, start_column=i+1, end_column=i+1)
+
+    for y in range(1, sheet2.max_column+1):
+        sheet2.cell(row = sheet2.max_row, column = y).border = bottemBorder
+
+for i in range(len(ET_DATA)+1):
+    for x in range(1, sheet2.max_row+1):
+        sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border = Border(left=Side(style=None) if sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.left.style == None else sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.left, 
+                     right=Side(style='medium'), 
+                     top=Side(style=None) if sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.top.style == None else sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.top, 
+                     bottom=Side(style=None) if sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.bottom.style == None else sheet2.cell(row = x, column = (i*5+8) if i != 0 else len(header)).border.bottom)
+
+for y in range(1, sheet2.max_column+1):
+    for x in range(1, sheet2.max_row+1):
+        sheet2.cell(row = x, column = y).alignment = Alignment(horizontal='center', wrapText=True, vertical = 'center')
+        sheet2.cell(row = x, column = y).font = Font(size=12, name='Times New Roman', color=sheet2.cell(row = x, column = y).font.color, bold=sheet2.cell(row = x, column = y).font.bold)
+        sheet2.cell(row = x, column = y).border = Border(left=Side(style='thin') if sheet2.cell(row = x, column = y).border.left.style == None else sheet2.cell(row = x, column = y).border.left, 
+                     right=Side(style='thin') if sheet2.cell(row = x, column = y).border.right.style == None else sheet2.cell(row = x, column = y).border.right, 
+                     top=Side(style='thin') if sheet2.cell(row = x, column = y).border.top.style == None else sheet2.cell(row = x, column = y).border.top, 
+                     bottom=Side(style='thin') if sheet2.cell(row = x, column = y).border.bottom.style == None else sheet2.cell(row = x, column = y).border.bottom)
         
+
+
+sheet2.freeze_panes = sheet2.cell(row = 2, column = len(header)+1).coordinate
+
 workbook.save('監考時間表.xlsx')
+

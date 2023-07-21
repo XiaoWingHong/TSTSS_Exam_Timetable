@@ -48,6 +48,7 @@ class TA:
         self.name = name
         self.totalTime = 0
         self.exams = {}
+        self.ratio = 0
 
 class examDetails:
     def __init__(self, name, period, room, timeLimit):
