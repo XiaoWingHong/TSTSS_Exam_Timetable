@@ -1,11 +1,5 @@
 import re
 
-def printErrorMsg(fileName):
-    print(fileName)
-    print('Press any key to continue ...')
-    input()
-    exit()
-
 class exam:
     def __init__(self, examDate):
         self.examDate = examDate
