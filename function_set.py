@@ -10,14 +10,25 @@ def findParentObj(data, name):
     return data[list(map(lambda x : x.name == name, data)).index(True)]
 
 def transferTimeFormat(inputTime):
-    tmp = re.compile(r'\d+').findall(inputTime)
-    if len(re.compile(r'p', re.I).findall(inputTime)) > 0:
-        if len(tmp[2]) == 1:
-            tmp[2] = str(int(tmp[2]) + 12)
-        if len(re.compile(r'p', re.I).findall(inputTime)) > 1 and len(tmp[0]) == 1:
-            tmp[0] = str(int(tmp[0]) + 12)
-
-    return '{}:{}-{}:{}'.format(tmp[0], tmp[1], tmp[2], tmp[3])
+    output = ''
+    if len(re.compile(r'\d+').findall(inputTime)) > 4:
+        inputTime = inputTime.split('\n')
+    else:
+        inputTime = [inputTime]
+    for i, time in enumerate(inputTime):
+        tmp = re.compile(r'\d+').findall(time)
+        if len(tmp) != 0 and len(tmp) % 4 == 0:
+            if len(re.compile(r'p', re.I).findall(time)) > 0:
+                if len(tmp[2]) == 1:
+                    tmp[2] = str(int(tmp[2]) + 12)
+                if len(re.compile(r'p', re.I).findall(time)) > 1 and len(tmp[0]) == 1:
+                    tmp[0] = str(int(tmp[0]) + 12)
+        
+            if i > 0:
+                output += '\n'
+            output += '{}:{}-{}:{}'.format(tmp[0], tmp[1], tmp[2], tmp[3])
+    
+    return output
 
 def checkTime(examTime, lessonTime):
     time1 = []

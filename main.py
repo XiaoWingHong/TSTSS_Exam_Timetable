@@ -251,6 +251,10 @@ def appendTA(i, subject, specific=None):
         if avalible:
             avalibleTAList.append(TA)
 
+    if len(avalibleTAList) == 0:
+        for TAName in SPECIAL_TA:
+            avalibleTAList.append(findParentObj(TA_DATA, TAName))
+
     avalibleTAList.sort(key=lambda x: x.totalTime, reverse=False)
     avalibleTA = avalibleTAList[0]
     subject.teachers[i] = avalibleTA.name
@@ -267,7 +271,7 @@ for exam in ET_DATA:
             for i in range(1,len(list(filter(lambda x: x == 'HALL', subject.room)))):
                 appendTA(i, subject, ENG_SPEAKING_HALL_TA)
             for i in range(subject.teachers.index(''),len(subject.room)):
-                if subject.room[i][-2] == 'p':
+                if 'p' in subject.room[i]:
                     appendTA(i, subject, SPEAKING_PR_TA)
             for i in range(len(FOREIGN_TEACHER)):
                 appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, FOREIGN_TEACHER), isOral=True)
@@ -275,10 +279,6 @@ for exam in ET_DATA:
             for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
                 appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_ENG_SPEAKING), isOral=True)
                 AVG_TIME += subject.timeLimit[1]
-        elif 'istening' in subject.name and 'TSA' not in subject.name:
-            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_LISTENING))
-            AVG_TIME += subject.timeLimit[0]
-            appendTA(2, subject)
         elif '說話' in subject.name or '説話' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_SPEAKING))
             AVG_TIME += subject.timeLimit[0]
@@ -290,7 +290,10 @@ for exam in ET_DATA:
             for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
                 appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_CHIN_SPEAKING), isOral=True)
                 AVG_TIME += subject.timeLimit[1]
-        elif '普通話' in subject.name:
+            
+for exam in ET_DATA:
+    for subject in exam.subjects:
+        if '普通話' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_PTH))
             appendTA(len(subject.room)-1, subject)
             AVG_TIME += subject.timeLimit[0]
@@ -301,11 +304,15 @@ for exam in ET_DATA:
             appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_CHIN_LISTENING))
             appendTA(len(subject.room)-1, subject)
             AVG_TIME += subject.timeLimit[0]
+        elif 'istening' in subject.name and 'TSA' not in subject.name:
+            appendTeachers(0, subject, findAvalibleTeachers(subject, MAIN_EXAMER_OF_ENG_LISTENING))
+            AVG_TIME += subject.timeLimit[0]
+            appendTA(2, subject)
         elif '視覺藝術' in subject.name:
             appendTeachers(0, subject, findAvalibleTeachers(subject, [MAIN_EXAMER_OF_VA[subject.form]]))
             AVG_TIME += subject.timeLimit[0]
         elif 'HALL' in subject.room:
-            appendTA(len(subject.room)-1, subject)
+            appendTA(len(subject.room)-1, subject)            
 
 for exam in ET_DATA:
     for subject in exam.subjects:
@@ -537,3 +544,4 @@ for x in range(2, sheet2.max_row):
 
 sheet2.freeze_panes = sheet2.cell(row = 2, column = len(header)+1).coordinate
 workbook.save('監考時間表.xlsx')
+
