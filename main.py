@@ -2,14 +2,13 @@ import class_set as cset
 from function_set import *
 import pandas as pd
 import re
-import openpyxl
 import numpy as np
+import openpyxl
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import Alignment
-from openpyxl.styles import Color, PatternFill, Font, Border
-from openpyxl.styles.borders import Border, Side
-from openpyxl import formatting, styles, Workbook
-
+from openpyxl.styles import Alignment, Color, PatternFill, Font, Border, Side
+from openpyxl import formatting, styles
+from openpyxl.cell.cell import MergedCell
+from openpyxl.worksheet.formula import ArrayFormula
 
 print('Reading data ...')
 
@@ -73,11 +72,17 @@ except:
 
 ET_DATA = []
 for date in df.columns:
+    tmp = date.replace(' ','')
+    tmp = tmp.replace('（','(')
+    tmp = tmp.replace('）',')')
+    df.rename(columns={date: tmp}, inplace=True)
+    df.replace(date, tmp, inplace=True)
+    date = tmp
     if date[-2:-1] in ['一', '二', '三', '四', '五', '六', '日']:
         ET_DATA.append(cset.exam(examDate=date))
     else:
         print('Exam Timetable: Date Formate Error!')
-    
+
 for exam in ET_DATA:
     exam.subjects = []
     exam.noExam = []
@@ -305,9 +310,10 @@ for exam in ET_DATA:
 for exam in ET_DATA:
     for subject in exam.subjects:
         AVG_TIME += subject.timeLimit[0] * len(list(filter(lambda x: x == '', subject.teachers)))
-            
+        
 for teacher in TT_DATA:
-    AVG_TIME += teacher.lessonTime*teacher.ratio
+    AVG_TIME += teacher.lessonTime * teacher.ratio
+
 
 AVG_TIME /= (sum(list(map(lambda x: x.ratio, TT_DATA+TA_DATA))))
 
@@ -438,6 +444,7 @@ for i, examDate in enumerate(map(lambda x: x.examDate, ET_DATA)):
 for y in range(1, sheet2.max_column+1):
         sheet2.cell(row = sheet2.max_row, column = y).border = bottemBorder
 
+TA_tmp = []
 
 for teacher in TT_DATA+TA_DATA:
     current_col = 1
@@ -447,11 +454,15 @@ for teacher in TT_DATA+TA_DATA:
     sheet2.cell(row = sheet2.max_row, column = current_col+2).value = teacher.ratio
     if teacher.ratio != 1:
         sheet2.cell(row = sheet2.max_row, column = current_col+2).fill = yellowFill
-    sheet2.cell(row = sheet2.max_row, column = current_col+3).value = teacher.lessonTime if type(teacher) == teacher else 0
+    sheet2.cell(row = sheet2.max_row, column = current_col+3).value = teacher.lessonTime if type(teacher) == cset.teacher else 0
     sheet2.cell(row = sheet2.max_row, column = current_col+4).value = teacher.totalTime - (teacher.lessonTime if type(teacher) == cset.teacher else 0)
     sheet2.cell(row = sheet2.max_row, column = current_col+5).value = teacher.totalTime
-    sheet2.cell(row = sheet2.max_row, column = current_col+6).value = round(AVG_TIME * teacher.ratio)
-    sheet2.cell(row = sheet2.max_row, column = current_col+7).value = '=' + sheet2.cell(row = sheet2.max_row, column = current_col+5).coordinate + '-' + sheet2.cell(row = sheet2.max_row, column = current_col+6).coordinate
+    
+    if type(teacher) == cset.TA and teacher.ratio == 0:
+        TA_tmp.append(sheet2.cell(row = sheet2.max_row, column = current_col+5).coordinate)
+        
+    # sheet2.cell(row = sheet2.max_row, column = current_col+6).value = round(AVG_TIME * teacher.ratio)
+    sheet2.cell(row = sheet2.max_row, column = current_col+7).value = '={}-{}'.format(sheet2.cell(row = sheet2.max_row, column = current_col+5).coordinate, sheet2.cell(row = sheet2.max_row, column = current_col+6).coordinate)
     sheet2.conditional_formatting.add(sheet2.cell(row = sheet2.max_row, column = current_col+7).coordinate, formatting.rule.CellIsRule(operator='notBetween', formula=[str(-offset),str(offset)], fill=red_fill, font=red_font))
     sheet2.conditional_formatting.add(sheet2.cell(row = sheet2.max_row, column = current_col+7).coordinate, formatting.rule.CellIsRule(operator='between', formula=[str(-offset),str(offset)], fill=green_fill, font=green_font))
     sheet2.row_dimensions[sheet2.max_row].height = 32
@@ -509,8 +520,20 @@ for y in range(1, sheet2.max_column+1):
                      top=Side(style='thin') if sheet2.cell(row = x, column = y).border.top.style == None else sheet2.cell(row = x, column = y).border.top, 
                      bottom=Side(style='thin') if sheet2.cell(row = x, column = y).border.bottom.style == None else sheet2.cell(row = x, column = y).border.bottom)
         
+avg_formula = '=ROUND((SUM($D$2:$D${}*$C$2:$C${})'.format(str(sheet2.max_row), str(sheet2.max_row))
+for coor in TA_tmp:
+    avg_formula += '-'+coor
+avg_formula += '+SUM($E$2:$E${}))/SUM($C$2:$C${}),0)'.format(str(sheet2.max_row), str(sheet2.max_row))
+tmp = sheet2.cell(row = sheet2.max_row+1, column=7).coordinate
+sheet2[tmp] = ArrayFormula(tmp, avg_formula)
 
+for y in range(3, 7):
+    tmp = sheet2.cell(row = sheet2.max_row, column=y).coordinate
+    sheet2[tmp] = ArrayFormula(tmp, '=SUM({}:{})'.format(sheet2.cell(row = 2, column=y).coordinate, sheet2.cell(row = sheet2.max_row-1, column=y).coordinate))
+
+for x in range(2, sheet2.max_row):
+    if not isinstance(sheet2.cell(row = x, column = 7), MergedCell):
+        sheet2.cell(row = x, column = 7).value = '=ROUND({}*{}, 0)'.format(str(sheet2.cell(row = sheet2.max_row, column = 7).coordinate), str(sheet2.cell(row = x, column = 3).coordinate))
 
 sheet2.freeze_panes = sheet2.cell(row = 2, column = len(header)+1).coordinate
-
 workbook.save('監考時間表.xlsx')

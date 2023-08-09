@@ -17,7 +17,7 @@ def transferTimeFormat(inputTime):
         if len(re.compile(r'p', re.I).findall(inputTime)) > 1 and len(tmp[0]) == 1:
             tmp[0] = str(int(tmp[0]) + 12)
 
-    return tmp[0]+':'+tmp[1]+'-'+tmp[2]+':'+tmp[3]
+    return '{}:{}-{}:{}'.format(tmp[0], tmp[1], tmp[2], tmp[3])
 
 def checkTime(examTime, lessonTime):
     time1 = []
