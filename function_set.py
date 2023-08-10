@@ -24,7 +24,7 @@ def transferTimeFormat(inputTime):
                 if len(re.compile(r'p', re.I).findall(time)) > 1 and len(tmp[0]) == 1:
                     tmp[0] = str(int(tmp[0]) + 12)
         
-            if i > 0:
+            if i > 0 and output != '':
                 output += '\n'
             output += '{}:{}-{}:{}'.format(tmp[0], tmp[1], tmp[2], tmp[3])
     

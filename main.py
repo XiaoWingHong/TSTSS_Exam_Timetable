@@ -223,7 +223,7 @@ def appendTeachers(i, subject, avalibleTeacher, isOral=False):
     subject.teachers[i] = avalibleTeacher.name
     tmp = 0 if not isOral else 1
     avalibleTeacher.totalTime += subject.timeLimit[tmp]
-    avalibleTeacher.exams[subject.parent.examDate].append(cset.examDetails(subject.name, subject.period, subject.room[i], subject.timeLimit[tmp]))
+    avalibleTeacher.exams[subject.parent.examDate].append(cset.examDetails(subject.name, subject.period.split('\n')[0 if not isOral else 1], subject.room[i], subject.timeLimit[tmp]))
 
 def appendTA(i, subject, specific=None):
     if specific == []:
@@ -259,7 +259,7 @@ def appendTA(i, subject, specific=None):
     avalibleTA = avalibleTAList[0]
     subject.teachers[i] = avalibleTA.name
     avalibleTA.totalTime += subject.timeLimit[0]
-    avalibleTA.exams[subject.parent.examDate].append(cset.examDetails(subject.name, subject.period, subject.room[i], subject.timeLimit[0]))
+    avalibleTA.exams[subject.parent.examDate].append(cset.examDetails(subject.name, subject.period.split('\n')[0], subject.room[i], subject.timeLimit[0]))
 
 print('Processing ...')
 
@@ -274,8 +274,11 @@ for exam in ET_DATA:
                 if 'p' in subject.room[i]:
                     appendTA(i, subject, SPEAKING_PR_TA)
             for i in range(len(FOREIGN_TEACHER)):
-                appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, FOREIGN_TEACHER), isOral=True)
-                AVG_TIME += subject.timeLimit[1]
+                try:
+                    appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, FOREIGN_TEACHER), isOral=True)
+                    AVG_TIME += subject.timeLimit[1]
+                except:
+                    print('FOREIGN_TEACHER not avalible')
             for i in range(len(list(filter(lambda x: x == '', subject.teachers)))):
                 appendTeachers(subject.teachers.index(''), subject, findAvalibleTeachers(subject, ORAL_EXAMER_OF_ENG_SPEAKING), isOral=True)
                 AVG_TIME += subject.timeLimit[1]
